@@ -3,9 +3,9 @@ import { catchError } from "../utils/catchError.js";
 
 export async function createProject(req, res) {
   try {
-    const user = req.user;
+    const { role_id } = req.user;
     const { project_name, description, tasks } = req.body;
-    if (user.role_id == 1 || user.role_id == 2) {
+    if (role_id == 1 || role_id == 2) {
       const result = await pool.query(
         `INSERT INTO projects (project_name, description, tasks)
        VALUES ($1, $2, $3)

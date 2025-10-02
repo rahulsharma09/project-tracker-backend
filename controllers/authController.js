@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { serialize } from "cookie";
 import { catchError } from "../utils/catchError.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "g4f65g4erg!#!@#654ewfewewf";
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = "1d"; // Example: 7 days
 
 export async function signup(req, res) {
@@ -54,25 +54,38 @@ export async function signup(req, res) {
 
 export async function login(req, res) {
   try {
-    console.log(process.env.JWT_SECRET);
     const { email, password } = req.body;
+
     let user = await pool.query(
-      `SELECT id, name, email, role_id, password FROM users
-      WHERE email = $1
-      `,
+      `SELECT id, name, email, role_id, password FROM users WHERE email = $1`,
       [email]
     );
+
     user = user.rows[0];
+    console.log("user - ", user);
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      catchError(res, 401, "Invalid email or password");
+      return res.status(401).json({ message: "Invalid email or password" });
     }
+
     // Create JWT token
-    const token = await jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
-    res.cookie("access_token", token);
-    return res.status(200).send({
+
+    // ✅ Set cookie before sending response
+    res.cookie("access_token", token, {
+      httpOnly: true,
+      path: "/",
+      maxAge: 60 * 60 * 1000,
+    });
+
+    // ✅ Return response
+    return res.status(200).json({
       message: "Login successful",
       data: {
         id: user.id,
@@ -82,7 +95,21 @@ export async function login(req, res) {
       },
     });
   } catch (error) {
-    console.log(error);
-    catchError(res, 400, "Invalid username or password");
+    console.error("Login error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+}
+
+export async function logout(req, res) {
+  try {
+    res.cookie("access_token","", {
+      httpOnly: true,
+      path: "/",
+      secure: false,
+    });
+    console.log(res)
+    res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    catchError(res, 500);
   }
 }
