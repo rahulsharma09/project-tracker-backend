@@ -74,14 +74,7 @@ export async function login(req, res) {
 
     // Create JWT token
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    // ✅ Set cookie before sending response
-    res.cookie("access_token", token, {
-      httpOnly: true,
-      path: "/",
-      maxAge: 60 * 60 * 1000,
+      expiresIn: "24h",
     });
 
     // ✅ Return response
@@ -92,6 +85,7 @@ export async function login(req, res) {
         name: user.name,
         email: user.email,
         role_id: user.role_id,
+        access_token: token,
       },
     });
   } catch (error) {

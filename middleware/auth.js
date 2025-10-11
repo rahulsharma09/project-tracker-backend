@@ -1,27 +1,17 @@
 import jwt from "jsonwebtoken";
 import { pool } from "../db.js";
-import { clog } from "cliplog";
 
 export async function userAuth(req, res, next) {
   try {
-    console.log("started");
-    const authHeader = req.headers["authorization"];
-
-    if (!authHeader) {
+    const access_token = req.headers["authorization"];
+    if (!access_token) {
       return res.status(401).json({ error: "Missing Authorization header" });
     }
 
-    let token;
-    token = authHeader.split(" ")[1];
-
-    // const {access_token} = req.cookies;
-    // token = access_token;
-
-    console.log("cookies - ", token);
-    if (!token) {
-      throw Error("Invalid token");
-    }
-    const decodedToken = await jwt.verify(token, "g4f65g4erg!#!@#654ewfewewf");
+    const decodedToken = await jwt.verify(
+      access_token,
+      "g4f65g4erg!#!@#654ewfewewf"
+    );
     if (!decodedToken) {
       return res.status(401).send("Unauthorized");
     }
