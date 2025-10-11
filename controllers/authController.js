@@ -102,12 +102,12 @@ export async function login(req, res) {
 
 export async function logout(req, res) {
   try {
-    res.cookie("access_token","", {
+    res.cookie("access_token", "", {
       httpOnly: true,
       path: "/",
       secure: false,
     });
-    console.log(res)
+    console.log(res);
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     catchError(res, 500);

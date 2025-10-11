@@ -4,19 +4,18 @@ import { clog } from "cliplog";
 
 export async function userAuth(req, res, next) {
   try {
-    console.log("started")
+    console.log("started");
     const authHeader = req.headers["authorization"];
 
     if (!authHeader) {
       return res.status(401).json({ error: "Missing Authorization header" });
     }
 
-    let token
+    let token;
     token = authHeader.split(" ")[1];
 
     // const {access_token} = req.cookies;
     // token = access_token;
-
 
     console.log("cookies - ", token);
     if (!token) {
