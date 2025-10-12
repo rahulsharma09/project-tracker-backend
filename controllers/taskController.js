@@ -46,88 +46,95 @@ export async function createTask(req, res) {
 
 export async function getUserTasksByProject(req, res) {
   try {
-    const { id, role_id } = req.user;
-    const { asignee, priority, status } = req.query;
-    console.log(role_id);
+    const { id, role_id } = req.user; // logged-in user info
     const { projectId } = req.params;
-    if (role_id == 0 || role_id == 1) {
-      const result = await pool.query(
-        `
-        SELECT 
-        t.id,
-        t.name,
-        t.priority,
-        t.start_date,
-        t.end_date,
-        t.comments,
-        t.project_id,
-        t.status,
-        t.assignee_id,
-        t.created_at,
-        t.updated_at,
-        COALESCE(
-        json_agg(
-            json_build_object(
-            'id', u.id,
-            'name', u.name,
-            'email', u.email
-            )
-            ) FILTER (WHERE u.id IS NOT NULL), 
-            '[]'
-            ) AS assignees
-            FROM tasks t
-            LEFT JOIN users u ON u.id = ANY(t.assignee_id)
-            WHERE $1 = ANY(t.assignee_id)
-            GROUP BY 
-        t.id, t.name, t.priority, t.start_date, 
-        t.end_date, t.comments, t.project_id, t.status, t.assignee_id, t.created_at,
-        t.updated_at;
-        `,
-        [projectId]
-      );
+    const { assignee_id, priority, status, start_date, end_date } = req.query;
 
-      res.status(200).json({ success: true, data: result.rows });
-    } else {
-      const result = await pool.query(
-        `
-       SELECT 
-        t.id,
-        t.name,
-        t.priority,
-        t.start_date,
-        t.end_date,
-        t.comments,
-        t.project_id,
-        t.status,
-        t.assignee_id,
-        t.created_at,
-        t.updated_at,
-        COALESCE(
-        json_agg(
-            json_build_object(
-            'id', u.id,
-            'name', u.name,
-            'email', u.email
-            )
-        ) FILTER (WHERE u.id IS NOT NULL),
-        '[]'
-        ) AS assignees
-    FROM tasks t
-    LEFT JOIN users u ON u.id = ANY(t.assignee_id)
-    WHERE $1 = ANY(t.assignee_id) 
-    AND t.project_id = $2
-    GROUP BY 
-    t.id, t.name, t.priority, t.start_date, 
-    t.end_date, t.comments, t.project_id, t.status, t.assignee_id,t.created_at,
-    t.updated_at;
-       `,
-        [id, projectId]
-      );
+    // --- Step 1: Prepare dynamic filters array ---
+    const filters = [];
+    const values = [];
 
-      res.status(200).json({ success: true, data: result.rows });
+    // Always include project_id (for both admin and non-admins)
+    values.push(projectId);
+    filters.push(`t.project_id = $${values.length}`);
+
+    // If user is not admin/manager, restrict to their assigned tasks
+    if (!(role_id == 0 || role_id == 1)) {
+      values.push(id);
+      filters.push(`$${values.length} = ANY(t.assignee_id)`);
     }
+
+    // --- Step 2: Add optional filters ---
+    // Apply only if provided in query
+    if (assignee_id) {
+      values.push(assignee_id);
+      filters.push(`$${values.length} = ANY(t.assignee_id)`);
+    }
+
+    if (priority) {
+      values.push(priority);
+      filters.push(`t.priority = $${values.length}`);
+    }
+
+    if (status) {
+      values.push(status);
+      filters.push(`t.status = $${values.length}`);
+    }
+
+    if (start_date && end_date) {
+      // Filter tasks with overlapping date range
+      values.push(start_date, end_date);
+      filters.push(
+        `t.start_date >= $${values.length - 1} AND t.end_date <= $${
+          values.length
+        }`
+      );
+    }
+
+    // --- Step 3: Build dynamic WHERE clause ---
+    const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+
+    // --- Step 4: Write the final query ---
+    const query = `
+      SELECT 
+        t.id,
+        t.name,
+        t.priority,
+        t.start_date,
+        t.end_date,
+        t.comments,
+        t.project_id,
+        t.status,
+        t.assignee_id,
+        t.created_at,
+        t.updated_at,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', u.id,
+              'name', u.name,
+              'email', u.email
+            )
+          ) FILTER (WHERE u.id IS NOT NULL),
+          '[]'
+        ) AS assignees
+      FROM tasks t
+      LEFT JOIN users u ON u.id = ANY(t.assignee_id)
+      ${whereClause}
+      GROUP BY 
+        t.id, t.name, t.priority, t.start_date, 
+        t.end_date, t.comments, t.project_id, 
+        t.status, t.assignee_id, t.created_at, t.updated_at
+      ORDER BY t.created_at DESC;
+    `;
+
+    // --- Step 5: Execute query ---
+    const result = await pool.query(query, values);
+    console.log("result - ", result.rows);
+    // --- Step 6: Send response ---
+    res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     catchError(res, 500);
   }
 }
