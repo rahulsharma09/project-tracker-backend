@@ -3,15 +3,12 @@ import { pool } from "../db.js";
 
 export async function userAuth(req, res, next) {
   try {
-    const access_token = req.headers["authorization"];
+    let access_token = req.headers["authorization"];
+    access_token = access_token.split("Bearer")[1].trim();
     if (!access_token) {
       return res.status(401).json({ error: "Missing Authorization header" });
     }
-
-    const decodedToken = await jwt.verify(
-      access_token,
-      "g4f65g4erg!#!@#654ewfewewf"
-    );
+    const decodedToken = await jwt.verify(access_token, process.env.JWT_SECRET);
     if (!decodedToken) {
       return res.status(401).send("Unauthorized");
     }
